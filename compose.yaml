@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: civis_agricola_backend
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app:Z
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: civis_agricola_frontend
+    command: streamlit run frontend/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app:Z
+    environment:
+      - CIVIS_API_URL=http://backend:8000/api/v1/analisar
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - backend
