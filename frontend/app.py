@@ -20,6 +20,7 @@ from backend.report_generator import generate_pdf_report
 
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 SAMPLES_DIR = PROCESSED_DIR / "samples_pcj"
+LOGO_PATH = BASE_DIR / "frontend" / "assets" / "logo_dark.png"
 API_URL = os.getenv("CIVIS_API_URL", "http://127.0.0.1:8000/api/v1/analisar")
 
 PCJ_CENTER = [-22.85, -47.05]
@@ -171,18 +172,32 @@ def build_pcj_map(
 
 
 def render_app():
-    """Renderiza a interface end-to-end com geração e download de laudo PDF (Dia 12)."""
+    icone_pagina = str(LOGO_PATH) if LOGO_PATH.exists() else "🌱"
+
     st.set_page_config(
         page_title="Civis Agricola | Consultoria Ambiental PCJ",
-        page_icon="🌱",
+        page_icon=icone_pagina,
         layout="wide",
     )
 
-    st.title("🌱 Civis Agricola — Consultoria Ambiental Rural (Bacias PCJ)")
-    st.caption(
-        "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
-        "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
-    )
+    # Exibe o logo no topo da barra lateral e ao lado do cabeçalho principal
+    if LOGO_PATH.exists():
+        st.logo(str(LOGO_PATH), size="large")
+        col_logo, col_titulo = st.columns([1, 9], vertical_alignment="center")
+        with col_logo:
+            st.image(str(LOGO_PATH), width=110)
+        with col_titulo:
+            st.title("Civis Agricola — Consultoria Ambiental Rural (Bacias PCJ)")
+            st.caption(
+                "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
+                "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
+            )
+    else:
+        st.title("🌱 Civis Agricola — Consultoria Ambiental Rural (Bacias PCJ)")
+        st.caption(
+            "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
+            "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
+        )
 
     with st.sidebar:
         st.header("1. Entrada da Propriedade")
@@ -252,7 +267,7 @@ def render_app():
         st_folium(mapa_pcj, width=None, height=600, returned_objects=[])
 
     with col_painel:
-        st.subheader("Laudo Diagnóstico (Estilo Embrapa/Sebrae)")
+        st.subheader("Diagnóstico e Orientações")
         if "resposta_api" in st.session_state:
             res = st.session_state["resposta_api"]["resultado"]
             status = res["status_geral"]
