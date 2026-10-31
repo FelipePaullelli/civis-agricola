@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "jundiai_app",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "nome": "Chácara Vale do Jundiaí (Jundiaí - Com APP)", "municipio": "Jundiaí" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -46.984, -23.173 ], [ -46.976, -23.173 ], [ -46.976, -23.167 ], [ -46.984, -23.167 ], [ -46.984, -23.173 ] ] ] } }
+]
+}

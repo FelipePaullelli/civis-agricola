@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "piracicaba_uc_app",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "nome": "Sítio Tanquã (Piracicaba - APP + UC)", "municipio": "Piracicaba" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.782, -22.682 ], [ -47.772, -22.682 ], [ -47.772, -22.674 ], [ -47.782, -22.674 ], [ -47.782, -22.682 ] ] ] } }
+]
+}
