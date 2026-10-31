@@ -94,7 +94,7 @@ def build_pcj_map(
     if not gdf_bacia.empty:
         folium.GeoJson(
             gdf_bacia,
-            name="Limite Bacias PCJ",
+            name="Limite Bacia PCJ",
             style_function=lambda _: {
                 "fillColor": "#1b5e20",
                 "color": "#66bb6a",
@@ -187,13 +187,13 @@ def render_app():
         with col_logo:
             st.image(str(LOGO_PATH), width=110)
         with col_titulo:
-            st.title("Civis Agricola — Consultoria Ambiental Rural (Bacias PCJ)")
+            st.title("Civis Agricola — Consultoria Ambiental Rural")
             st.caption(
                 "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
                 "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
             )
     else:
-        st.title("🌱 Civis Agricola — Consultoria Ambiental Rural (Bacias PCJ)")
+        st.title("🌱 Civis Agricola — Consultoria Ambiental Rural")
         st.caption(
             "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
             "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
