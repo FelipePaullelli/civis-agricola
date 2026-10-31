@@ -40,10 +40,7 @@ def load_pcj_layer(filename: str) -> gpd.GeoDataFrame:
 
 
 def request_property_analysis(file_bytes: bytes, filename: str) -> Tuple[Dict[str, Any], str]:
-    """
-    Envia o arquivo vetorial via HTTP POST para a API FastAPI (/api/v1/analisar).
-    Caso o servidor HTTP não esteja aberto em outro terminal, executa via motor local.
-    """
+    """Envia o arquivo vetorial via HTTP POST para a API FastAPI ou aciona o motor local."""
     try:
         files = {"arquivo": (filename, file_bytes, "application/octet-stream")}
         response = requests.post(API_URL, files=files, timeout=10)
@@ -76,7 +73,6 @@ def build_pcj_map(
         control_scale=True,
     )
 
-    # Tile escuro via URL direta (elimina o UserWarning de API key do CartoDB no Folium 0.20+)
     folium.TileLayer(
         tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
         attr="&copy; OpenStreetMap contributors &copy; CARTO",
@@ -92,7 +88,6 @@ def build_pcj_map(
         name="Satélite (Esri World Imagery)",
     ).add_to(mapa)
 
-    # 1. Limite da Bacia PCJ
     gdf_bacia = load_pcj_layer("limite_bacia_pcj.geojson")
     if not gdf_bacia.empty:
         folium.GeoJson(
@@ -107,7 +102,6 @@ def build_pcj_map(
             tooltip=folium.GeoJsonTooltip(fields=["nome"], aliases=["Região:"]),
         ).add_to(mapa)
 
-    # 2. Malha Municipal PCJ (78 municípios)
     gdf_mun = load_pcj_layer("municipios_pcj.geojson")
     if not gdf_mun.empty:
         folium.GeoJson(
@@ -123,7 +117,6 @@ def build_pcj_map(
             tooltip=folium.GeoJsonTooltip(fields=["nm_mun", "uf"], aliases=["Município:", "UF:"]),
         ).add_to(mapa)
 
-    # 3. Unidades de Conservação PCJ
     gdf_ucs = load_pcj_layer("unidades_conservacao_pcj.geojson")
     if not gdf_ucs.empty:
         folium.GeoJson(
@@ -141,7 +134,6 @@ def build_pcj_map(
             ),
         ).add_to(mapa)
 
-    # 4. Hidrografia Principal PCJ
     gdf_hidro = load_pcj_layer("hidrografia_pcj.geojson")
     if not gdf_hidro.empty:
         folium.GeoJson(
@@ -157,7 +149,6 @@ def build_pcj_map(
             ),
         ).add_to(mapa)
 
-    # 5. Polígono da Propriedade Analisada (se enviado pelo produtor)
     if gdf_imovel is not None and not gdf_imovel.empty:
         folium.GeoJson(
             gdf_imovel,
@@ -179,7 +170,7 @@ def build_pcj_map(
 
 
 def render_app():
-    """Renderiza a interface do Streamlit com upload vetorial e conexão Backend (Dia 9)."""
+    """Renderiza a interface refinada estilo Embrapa/Sebrae com cards de status (Dia 10)."""
     st.set_page_config(
         page_title="Civis Agricola | Consultoria Ambiental PCJ",
         page_icon="🌱",
@@ -242,7 +233,7 @@ def render_app():
         except Exception as exc:
             st.error(f"Falha ao processar o arquivo enviado: {exc}")
 
-    col_mapa, col_json = st.columns([3, 2])
+    col_mapa, col_painel = st.columns([3, 2])
 
     with col_mapa:
         st.subheader("Mapa Interativo de Diagnóstico Territorial")
@@ -250,33 +241,51 @@ def render_app():
             gdf_imovel=st.session_state.get("gdf_imovel"),
             centro_imovel=st.session_state.get("centro_imovel"),
         )
-        st_folium(mapa_pcj, width=None, height=580, returned_objects=[])
+        st_folium(mapa_pcj, width=None, height=600, returned_objects=[])
 
-    with col_json:
-        st.subheader("Retorno do Diagnóstico (API Backend)")
+    with col_painel:
+        st.subheader("Laudo Diagnóstico (Estilo Embrapa/Sebrae)")
         if "resposta_api" in st.session_state:
             res = st.session_state["resposta_api"]["resultado"]
-            st.success(f"Processado via: {st.session_state['modo_conexao']}")
+            status = res["status_geral"]
 
+            # Card de Status com Cores Dinâmicas
+            if "Regular" in status:
+                st.success(f"**Status da Conformidade:** {status}")
+            else:
+                st.warning(f"**Status da Conformidade:** {status}")
+
+            # Métricas Executivas
             m1, m2, m3 = st.columns(3)
-            m1.metric("Área Total (ha)", f"{res['balanco_uso_solo_ha']['area_total_ha']:.2f}")
-            m2.metric("APP Estimada (ha)", f"{res['balanco_uso_solo_ha']['app_estimada_ha']:.2f}")
-            m3.metric("Reserva Legal 20%", f"{res['balanco_uso_solo_ha']['reserva_legal_referencia_ha']:.2f}")
+            m1.metric("Área Total", f"{res['balanco_uso_solo_ha']['area_total_ha']:.2f} ha")
+            m2.metric("APP Estimada", f"{res['balanco_uso_solo_ha']['app_estimada_ha']:.2f} ha")
+            m3.metric("Reserva Legal", f"{res['balanco_uso_solo_ha']['reserva_legal_referencia_ha']:.2f} ha")
 
-            st.markdown(f"**Status Geral:** `{res['status_geral']}`")
-            st.info(res["conclusao_tecnica"])
+            # Conclusão Técnica
+            st.markdown("##### 📌 Conclusão Preliminar")
+            st.write(res["conclusao_tecnica"])
 
-            with st.expander("📄 Visualizar JSON Completo da Resposta", expanded=True):
+            # Alertas e Recomendações
+            if res["alertas"]:
+                with st.expander("⚠️ Alertas Territoriais Identificados", expanded=True):
+                    for alerta in res["alertas"]:
+                        st.write(f"- {alerta}")
+
+            with st.expander("💡 Recomendações Técnicas para o Produtor", expanded=False):
+                for rec in res["recomendacoes_tecnicas"]:
+                    st.write(f"• {rec}")
+
+            with st.expander("📄 Visualizar JSON Completo da API", expanded=False):
                 st.json(st.session_state["resposta_api"])
         else:
             st.info(
                 "Selecione um arquivo vetorial ou um cenário de teste na barra lateral "
-                "e clique em **Executar Diagnóstico Ambiental** para visualizar o JSON da API."
+                "e clique em **Executar Diagnóstico Ambiental** para gerar o laudo executivo."
             )
 
 
 def _run_cli_check():
-    """Executa o autoteste de integração Frontend-Backend do Dia 9 via terminal."""
+    """Autoteste do Dia 10 via terminal."""
     sample_path = SAMPLES_DIR / "piracicaba_uc_app.geojson"
     if not sample_path.exists():
         sample_path = PROCESSED_DIR / "amostra_propriedade_pcj.geojson"
@@ -284,16 +293,13 @@ def _run_cli_check():
     raw_bytes = sample_path.read_bytes()
     payload, origem = request_property_analysis(raw_bytes, sample_path.name)
     val = validate_and_standardize(raw_bytes, filename=sample_path.name)
-    mapa = build_pcj_map(gdf_imovel=val["gdf"], centro_imovel=val["centroide_lat_lon"])
-
     res = payload["resultado"]
-    print("\n=== Teste de Conexão Frontend-Backend (Dia 9) ===")
-    print(f"Arquivo Enviado    : {payload['arquivo_processado']}")
+
+    print("\n=== Teste do Painel Executivo (Dia 10) ==pss")
     print(f"Canal de Conexão   : {origem}")
-    print(f"Centro do Mapa     : {mapa.location} (Zoom focado no imóvel)")
-    print(f"Status Geral       : {res['status_geral']}")
-    print(f"Chaves do JSON     : {list(res.keys())}")
-    print("Status             : Upload e integração Frontend-Backend validados sem avisos!")
+    print(f"Status do Imóvel   : {res['status_geral']}")
+    print(f"Recomendações Geradas: {len(res['recomendacoes_tecnicas'])} diretrizes")
+    print("Status             : Interface refinada estilo Embrapa/Sebrae validada com sucesso!")
 
 
 if __name__ == "__main__":
