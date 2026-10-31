@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "amostra_propriedade_pcj",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "nome": "Sítio São José (Teste PCJ)" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.652, -22.718 ], [ -47.644, -22.718 ], [ -47.644, -22.712 ], [ -47.652, -22.712 ], [ -47.652, -22.718 ] ] ] } }
+]
+}

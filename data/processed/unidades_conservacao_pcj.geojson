@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"name": "unidades_conservacao_pcj",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4674" } },
+"features": [
+{ "type": "Feature", "properties": { "nome_uc": "APA Tanquã - Rio Piracicaba", "categoria": "Uso Sustentável", "restricao": "Média" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.82, -22.71 ], [ -47.73, -22.71 ], [ -47.73, -22.65 ], [ -47.82, -22.65 ], [ -47.82, -22.71 ] ] ] } },
+{ "type": "Feature", "properties": { "nome_uc": "Estação Ecológica de Ibicatu (Piracicaba)", "categoria": "Proteção Integral", "restricao": "Alta" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -47.835, -22.785 ], [ -47.805, -22.785 ], [ -47.805, -22.765 ], [ -47.835, -22.765 ], [ -47.835, -22.785 ] ] ] } },
+{ "type": "Feature", "properties": { "nome_uc": "APA Sistema Cantareira (Setor PCJ)", "categoria": "Uso Sustentável", "restricao": "Média" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -46.65, -23.15 ], [ -46.2, -23.15 ], [ -46.2, -22.8 ], [ -46.65, -22.8 ], [ -46.65, -23.15 ] ] ] } }
+]
+}
