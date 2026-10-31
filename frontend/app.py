@@ -16,6 +16,7 @@ from streamlit_folium import st_folium
 
 from backend.app_calculator import calculate_environmental_liability
 from backend.spatial_validator import SpatialValidationError, validate_and_standardize
+from backend.report_generator import generate_pdf_report
 
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 SAMPLES_DIR = PROCESSED_DIR / "samples_pcj"
@@ -170,7 +171,7 @@ def build_pcj_map(
 
 
 def render_app():
-    """Renderiza a interface refinada estilo Embrapa/Sebrae com cards de status (Dia 10)."""
+    """Renderiza a interface end-to-end com geração e download de laudo PDF (Dia 12)."""
     st.set_page_config(
         page_title="Civis Agricola | Consultoria Ambiental PCJ",
         page_icon="🌱",
@@ -223,13 +224,20 @@ def render_app():
 
     if executar and file_bytes and filename:
         try:
-            with st.spinner("Processando geometria e cruzando camadas da Bacia PCJ..."):
+            with st.spinner("Processando geometria, cruzando camadas e gerando laudo PDF..."):
                 resposta_api, modo_conexao = request_property_analysis(file_bytes, filename)
                 val_local = validate_and_standardize(file_bytes, filename=filename)
+                
+                # Gera o arquivo PDF automaticamente para download
+                pdf_path = generate_pdf_report(file_bytes, filename=filename)
+                pdf_bytes = pdf_path.read_bytes()
+
                 st.session_state["resposta_api"] = resposta_api
                 st.session_state["modo_conexao"] = modo_conexao
                 st.session_state["gdf_imovel"] = val_local["gdf"]
                 st.session_state["centro_imovel"] = val_local["centroide_lat_lon"]
+                st.session_state["pdf_bytes"] = pdf_bytes
+                st.session_state["pdf_filename"] = f"laudo_{Path(filename).stem}.pdf"
         except Exception as exc:
             st.error(f"Falha ao processar o arquivo enviado: {exc}")
 
@@ -249,25 +257,32 @@ def render_app():
             res = st.session_state["resposta_api"]["resultado"]
             status = res["status_geral"]
 
-            # Card de Status com Cores Dinâmicas
             if "Regular" in status:
                 st.success(f"**Status da Conformidade:** {status}")
             else:
                 st.warning(f"**Status da Conformidade:** {status}")
 
-            # Métricas Executivas
+            # Botão de Download End-to-End do PDF
+            if "pdf_bytes" in st.session_state:
+                st.download_button(
+                    label="📥 Baixar Laudo Técnico em PDF",
+                    data=st.session_state["pdf_bytes"],
+                    file_name=st.session_state["pdf_filename"],
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True,
+                )
+
             m1, m2, m3 = st.columns(3)
             m1.metric("Área Total", f"{res['balanco_uso_solo_ha']['area_total_ha']:.2f} ha")
             m2.metric("APP Estimada", f"{res['balanco_uso_solo_ha']['app_estimada_ha']:.2f} ha")
             m3.metric("Reserva Legal", f"{res['balanco_uso_solo_ha']['reserva_legal_referencia_ha']:.2f} ha")
 
-            # Conclusão Técnica
             st.markdown("##### 📌 Conclusão Preliminar")
             st.write(res["conclusao_tecnica"])
 
-            # Alertas e Recomendações
             if res["alertas"]:
-                with st.expander("⚠️ Alertas Territoriais Identificados", expanded=True):
+                with st.expander("⚠️ Alertas Territoriales Identificados", expanded=True):
                     for alerta in res["alertas"]:
                         st.write(f"- {alerta}")
 
@@ -280,12 +295,12 @@ def render_app():
         else:
             st.info(
                 "Selecione um arquivo vetorial ou um cenário de teste na barra lateral "
-                "e clique em **Executar Diagnóstico Ambiental** para gerar o laudo executivo."
+                "e clique em **Executar Diagnóstico Ambiental** para gerar o laudo e liberar o download em PDF."
             )
 
 
 def _run_cli_check():
-    """Autoteste do Dia 10 via terminal."""
+    """Autoteste End-to-End do Dia 12 via terminal."""
     sample_path = SAMPLES_DIR / "piracicaba_uc_app.geojson"
     if not sample_path.exists():
         sample_path = PROCESSED_DIR / "amostra_propriedade_pcj.geojson"
@@ -293,13 +308,14 @@ def _run_cli_check():
     raw_bytes = sample_path.read_bytes()
     payload, origem = request_property_analysis(raw_bytes, sample_path.name)
     val = validate_and_standardize(raw_bytes, filename=sample_path.name)
+    pdf_out = generate_pdf_report(raw_bytes, filename=sample_path.name)
     res = payload["resultado"]
 
-    print("\n=== Teste do Painel Executivo (Dia 10) ==pss")
-    print(f"Canal de Conexão   : {origem}")
-    print(f"Status do Imóvel   : {res['status_geral']}")
-    print(f"Recomendações Geradas: {len(res['recomendacoes_tecnicas'])} diretrizes")
-    print("Status             : Interface refinada estilo Embrapa/Sebrae validada com sucesso!")
+    print("\n=== Teste End-to-End (Dia 12) ===")
+    print(f"Canal de Conexão     : {origem}")
+    print(f"Status do Imóvel     : {res['status_geral']}")
+    print(f"PDF Gerado com Sucesso: {pdf_out.name} ({pdf_out.stat().st_size} bytes)")
+    print("Status               : Integração End-to-End Streamlit + Backend + PDF validada!")
 
 
 if __name__ == "__main__":
