@@ -20,7 +20,7 @@ from backend.report_generator import generate_pdf_report
 
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 SAMPLES_DIR = PROCESSED_DIR / "samples_pcj"
-LOGO_PATH = BASE_DIR / "frontend" / "assets" / "logo_dark.png"
+LOGO_PATH = BASE_DIR / "frontend" / "assets" / "logo_dark.jpeg"
 API_URL = os.getenv("CIVIS_API_URL", "http://127.0.0.1:8000/api/v1/analisar")
 
 PCJ_CENTER = [-22.85, -47.05]
