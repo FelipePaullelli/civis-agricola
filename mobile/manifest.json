@@ -1,0 +1,10 @@
+{
+  "name": "Civis Agrícola — Coleta Offline",
+  "short_name": "Civis Agrícola",
+  "description": "Coleta de perímetro rural offline e consulta cidadã ao CAR e Código Florestal.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e1117",
+  "theme_color": "#1b5e20",
+  "orientation": "portrait"
+}

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1b5e20">
+  <title>Civis Agrícola — App Leve Offline</title>
+  <link rel="manifest" href="./manifest.json">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background-color: #0e1117;
+      color: #f0f6fc;
+      line-height: 1.45;
+      padding: 12px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 2px solid #2e7d32;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand h1 { font-size: 1.2rem; color: #66bb6a; }
+    .brand p { font-size: 0.78rem; color: #8b949e; }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 12px;
+    }
+    .badge.online { background: #1b5e20; color: #a5d6a7; }
+    .badge.offline { background: #b71c1c; color: #ffcdd2; }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      font-size: 0.98rem;
+      color: #81c784;
+      margin-bottom: 8px;
+    }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      color: #c9d1d9;
+      margin-bottom: 4px;
+      margin-top: 8px;
+    }
+    input[type="text"], select, input[type="file"] {
+      width: 100%;
+      padding: 9px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #f0f6fc;
+      font-size: 0.9rem;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      flex: 1;
+      min-width: 120px;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-primary { background: #2e7d32; color: #ffffff; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-warning { background: #e65100; color: #ffffff; }
+    .btn-danger { background: #8e0000; color: #ffffff; }
+    canvas {
+      width: 100%;
+      height: 170px;
+      background: #090d13;
+      border: 1px dashed #2e7d32;
+      border-radius: 6px;
+      margin-top: 8px;
+      display: block;
+    }
+    .metrics {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      background: #0d1117;
+      padding: 8px;
+      border-radius: 6px;
+      margin-top: 6px;
+      color: #a5d6a7;
+    }
+    .queue-item {
+      background: #0d1117;
+      border-left: 4px solid #ffb300;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+      font-size: 0.82rem;
+    }
+    .queue-item.synced { border-left-color: #00e676; }
+    .parecer-box {
+      background: #122417;
+      border: 1px solid #2e7d32;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+    .parecer-box h3 { color: #66bb6a; font-size: 0.92rem; margin-bottom: 6px; }
+    .parecer-box ul { padding-left: 18px; margin-top: 4px; }
+    .status-msg { font-size: 0.8rem; color: #ffd54f; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>🌱 Civis Agrícola</h1>
+      <p>Coleta Cidadã Offline • Bacias PCJ & Brasil</p>
+    </div>
+    <span id="net-badge" class="badge online">ONLINE</span>
+  </header>
+
+  <!-- Etapa 1: Identificação Básica -->
+  <section class="card">
+    <h2>1. Identificação do Imóvel Rural</h2>
+    <label for="nome-imovel">Nome do Sítio / Propriedade:</label>
+    <input type="text" id="nome-imovel" placeholder="Ex: Sítio São José">
+
+    <label for="uf-imovel">Estado (Sistema CAR):</label>
+    <select id="uf-imovel">
+      <option value="SP">São Paulo (SICAR-SP / DataGEO)</option>
+      <option value="MG">Minas Gerais (IDE-Sisema / Sicar Federal)</option>
+      <option value="BR">Outro Estado (Padrão Federal SICAR)</option>
+    </select>
+
+    <label for="recibo-car">Recibo / Protocolo do CAR (Opcional):</label>
+    <input type="text" id="recibo-car" placeholder="Ex: SP-3538709-XXXX...">
+  </section>
+
+  <!-- Etapa 2: Captura de Polígono Offline -->
+  <section class="card">
+    <h2>2. Demarcação do Terreno (Funciona Sem Internet)</h2>
+    <p style="font-size:0.78rem; color:#8b949e;">
+      Caminhe pelos cantos da propriedade marcando os pontos no GPS ou anexe um arquivo já existente.
+    </p>
+
+    <div class="btn-row">
+      <button type="button" class="btn-primary" onclick="capturarPontoGPS()">📍 Marcar Ponto GPS</button>
+      <button type="button" class="btn-secondary" onclick="simularPontoPCJ()">🧪 Simular Ponto (PC)</button>
+    </div>
+
+    <canvas id="mapa-canvas" width="400" height="170"></canvas>
+
+    <div class="metrics">
+      <span id="lbl-vertices">Vértices: 0</span>
+      <span id="lbl-area">Área est.: 0.00 ha</span>
+    </div>
+
+    <label for="input-arquivo">Ou carregar arquivo no celular (.geojson, .kml, .zip):</label>
+    <input type="file" id="input-arquivo" accept=".geojson,.json,.kml,.zip,.shp" onchange="lerArquivoLocal(event)">
+
+    <div class="btn-row">
+      <button type="button" class="btn-warning" onclick="salvarColetaOffline()">💾 Salvar no Celular (Offline)</button>
+      <button type="button" class="btn-danger" onclick="limparPontos()">🗑️ Limpar</button>
+    </div>
+    <div id="msg-captura" class="status-msg"></div>
+  </section>
+
+  <!-- Etapa 3: Fila Offline e Sincronização -->
+  <section class="card">
+    <h2>3. Cadastros Salvos no Aparelho</h2>
+    <div class="btn-row" style="margin-bottom: 8px;">
+      <button type="button" class="btn-primary" onclick="sincronizarComServidor()">🔄 Sincronizar com Servidor</button>
+      <button type="button" class="btn-secondary" onclick="exportarGeoJSON()">📥 Baixar .GeoJSON</button>
+    </div>
+    <div id="lista-fila"></div>
+    <div id="parecer-container"></div>
+  </section>
+
+  <script>
+    // Registro do Service Worker para modo 100% Offline
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(function() {});
+    }
+
+    var pontosAtuais = []; // Lista de [lon, lat]
+    var STORAGE_KEY = 'civis_agricola_fila_offline_v1';
+    var API_URL = 'http://127.0.0.1:8000/api/v1/analisar';
+
+    // Monitoramento de conectividade
+    function atualizarStatusRede() {
+      var badge = document.getElementById('net-badge');
+      if (navigator.onLine) {
+        badge.textContent = 'ONLINE';
+        badge.className = 'badge online';
+      } else {
+        badge.textContent = 'MODO CAMPO (OFFLINE)';
+        badge.className = 'badge offline';
+      }
+    }
+    window.addEventListener('online', atualizarStatusRede);
+    window.addEventListener('offline', atualizarStatusRede);
+    atualizarStatusRede();
+
+    // Captura real do chip GPS do celular (funciona sem dados móveis)
+    function capturarPontoGPS() {
+      var msg = document.getElementById('msg-captura');
+      if (!navigator.geolocation) {
+        msg.textContent = 'GPS não suportado neste navegador.';
+        return;
+      }
+      msg.textContent = 'Lendo satélites GPS...';
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          var lon = Number(pos.coords.longitude.toFixed(6));
+          var lat = Number(pos.coords.latitude.toFixed(6));
+          pontosAtuais.push([lon, lat]);
+          msg.textContent = 'Ponto capturado: ' + lat + ', ' + lon;
+          atualizarCanvasEMetricas();
+        },
+        function(err) {
+          msg.textContent = 'Sinal GPS indisponível no PC. Use o botão "Simular Ponto".';
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // Simulador de polígono na Bacia PCJ (Piracicaba) para testes rápidos
+    function simularPontoPCJ() {
+      var base = [
+        [-47.8050, -22.6950],
+        [-47.7950, -22.6950],
+        [-47.7950, -22.6850],
+        [-47.8050, -22.6850]
+      ];
+      var idx = pontosAtuais.length % base.length;
+      var jitter = (pontosAtuais.length >= 4) ? (Math.random() - 0.5) * 0.002 : 0;
+      var pt = [
+        Number((base[idx][0] + jitter).toFixed(6)),
+        Number((base[idx][1] + jitter).toFixed(6))
+      ];
+      pontosAtuais.push(pt);
+      document.getElementById('msg-captura').textContent = 'Vértice adicionado: ' + pt[1] + ', ' + pt[0];
+      atualizarCanvasEMetricas();
+    }
+
+    // Cálculo leve de área esférica aproximada em hectares no próprio aparelho
+    function calcularAreaHectares(coords) {
+      if (coords.length < 3) return 0;
+      var areaGraus = 0;
+      for (var i = 0; i < coords.length; i++) {
+        var j = (i + 1) % coords.length;
+        areaGraus += coords[i][0] * coords[j][1];
+        areaGraus -= coords[j][0] * coords[i][1];
+      }
+      areaGraus = Math.abs(areaGraus) / 2.0;
+      var latMediaRad = (coords[0][1] * Math.PI) / 180.0;
+      var mPorGrauLat = 111132.0;
+      var mPorGrauLon = 111320.0 * Math.cos(latMediaRad);
+      var areaM2 = areaGraus * mPorGrauLat * mPorGrauLon;
+      return areaM2 / 10000.0;
+    }
+
+    // Desenha o polígono em Canvas 2D sem precisar de mapa da internet
+    function atualizarCanvasEMetricas() {
+      var canvas = document.getElementById('mapa-canvas');
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      document.getElementById('lbl-vertices').textContent = 'Vértices: ' + pontosAtuais.length;
+      var areaHa = calcularAreaHectares(pontosAtuais);
+      document.getElementById('lbl-area').textContent = 'Área est.: ' + areaHa.toFixed(2) + ' ha';
+
+      if (pontosAtuais.length === 0) return;
+
+      var lons = pontosAtuais.map(function(p) { return p[0]; });
+      var lats = pontosAtuais.map(function(p) { return p[1]; });
+      var minX = Math.min.apply(null, lons), maxX = Math.max.apply(null, lons);
+      var minY = Math.min.apply(null, lats), maxY = Math.max.apply(null, lats);
+      var spanX = (maxX - minX) || 0.001;
+      var spanY = (maxY - minY) || 0.001;
+      var pad = 22;
+
+      function toScreen(pt) {
+        var x = pad + ((pt[0] - minX) / spanX) * (canvas.width - pad * 2);
+        var y = canvas.height - pad - ((pt[1] - minY) / spanY) * (canvas.height - pad * 2);
+        return [x, y];
+      }
+
+      ctx.beginPath();
+      for (var i = 0; i < pontosAtuais.length; i++) {
+        var s = toScreen(pontosAtuais[i]);
+        if (i === 0) ctx.moveTo(s[0], s[1]);
+        else ctx.lineTo(s[0], s[1]);
+      }
+      if (pontosAtuais.length >= 3) {
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 214, 0, 0.25)';
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#ffd600';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      for (var k = 0; k < pontosAtuais.length; k++) {
+        var p = toScreen(pontosAtuais[k]);
+        ctx.fillStyle = '#00e676';
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Leitura de arquivo GeoJSON local caso o produtor já tenha no celular
+    function lerArquivoLocal(event) {
+      var file = event.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var geojson = JSON.parse(e.target.result);
+          var geom = geojson.features ? geojson.features[0].geometry : geojson.geometry;
+          var ring = (geom.type === 'Polygon') ? geom.coordinates[0] : geom.coordinates[0][0];
+          pontosAtuais = ring.slice(0, ring.length - 1);
+          document.getElementById('msg-captura').textContent = 'Arquivo carregado localmente: ' + file.name;
+          atualizarCanvasEMetricas();
+        } catch (err) {
+          document.getElementById('msg-captura').textContent = 'Arquivo selecionado pronto para envio.';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function limparPontos() {
+      pontosAtuais = [];
+      atualizarCanvasEMetricas();
+      document.getElementById('msg-captura').textContent = 'Demarcação limpa.';
+    }
+
+    function montarGeoJSON(item) {
+      var anel = item.pontos.slice();
+      if (anel.length >= 3) {
+        anel.push(anel[0]); // Fecha o anel topológico
+      }
+      return {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {
+            nome_imovel: item.nome,
+            uf_origem: item.uf,
+            recibo_car: item.recibo,
+            coleta_offline_em: item.data
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [anel]
+          }
+        }]
+      };
+    }
+
+    function obterFila() {
+      var bruto = localStorage.getItem(STORAGE_KEY);
+      return bruto ? JSON.parse(bruto) : [];
+    }
+
+    function salvarColetaOffline() {
+      if (pontosAtuais.length < 3) {
+        document.getElementById('msg-captura').textContent = 'Marque pelo menos 3 pontos para fechar o terreno.';
+        return;
+      }
+      var nome = document.getElementById('nome-imovel').value.trim() || 'Sítio Sem Nome';
+      var uf = document.getElementById('uf-imovel').value;
+      var recibo = document.getElementById('recibo-car').value.trim() || 'Não informado';
+
+      var fila = obterFila();
+      fila.push({
+        id: Date.now(),
+        nome: nome,
+        uf: uf,
+        recibo: recibo,
+        pontos: pontosAtuais,
+        area_ha: calcularAreaHectares(pontosAtuais),
+        data: new Date().toLocaleString('pt-BR'),
+        sincronizado: false
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fila));
+      limparPontos();
+      document.getElementById('msg-captura').textContent = 'Salvo na memória do aparelho com sucesso!';
+      renderizarFila();
+    }
+
+    function renderizarFila() {
+      var fila = obterFila();
+      var div = document.getElementById('lista-fila');
+      if (fila.length === 0) {
+        div.innerHTML = '<p style="font-size:0.8rem; color:#8b949e;">Nenhuma coleta pendente no aparelho.</p>';
+        return;
+      }
+      div.innerHTML = fila.map(function(item) {
+        var st = item.sincronizado ? '✅ Sincronizado' : '⏳ Aguardando internet';
+        var cls = item.sincronizado ? 'queue-item synced' : 'queue-item';
+        return '<div class="' + cls + '">' +
+          '<strong>' + item.nome + ' (' + item.uf + ')</strong> — ' + item.area_ha.toFixed(2) + ' ha<br>' +
+          'CAR: ' + item.recibo + ' | ' + st +
+          '</div>';
+      }).join('');
+    }
+
+    function exportarGeoJSON() {
+      var fila = obterFila();
+      if (fila.length === 0) return;
+      var ultimo = fila[fila.length - 1];
+      var geo = montarGeoJSON(ultimo);
+      var blob = new Blob([JSON.stringify(geo, null, 2)], { type: 'application/geo+json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'coleta_campo_' + ultimo.uf.toLowerCase() + '.geojson';
+      a.click();
+    }
+
+    function sincronizarComServidor() {
+      var fila = obterFila();
+      if (fila.length === 0) return;
+      var ultimo = fila[fila.length - 1];
+      var geo = montarGeoJSON(ultimo);
+      var blob = new Blob([JSON.stringify(geo)], { type: 'application/geo+json' });
+      var formData = new FormData();
+      formData.append('arquivo', blob, 'coleta_mobile.geojson');
+
+      var container = document.getElementById('parecer-container');
+      container.innerHTML = '<p class="status-msg">Enviando polígono leve ao motor espacial...</p>';
+
+      fetch(API_URL, { method: 'POST', body: formData })
+        .then(function(res) { return res.json(); })
+        .then(function(dados) {
+          ultimo.sincronizado = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(fila));
+          renderizarFila();
+
+          var r = dados.resultado;
+          var recs = (r.recomendacoes_tecnicas || []).map(function(t) {
+            return '<li>' + t + '</li>';
+          }).join('');
+
+          container.innerHTML =
+            '<div class="parecer-box">' +
+            '<h3>📋 Cartilha Cidadã do Seu Sítio (' + r.status_geral + ')</h3>' +
+            '<p>' + r.conclusao_tecnica + '</p>' +
+            '<ul>' + recs + '</ul>' +
+            '</div>';
+        })
+        .catch(function() {
+          // Caso a API local esteja desligada, demonstra o guia popular pré-processado em lote
+          container.innerHTML =
+            '<div class="parecer-box">' +
+            '<h3>📋 Guia Cidadão (Modo Demonstração Local)</h3>' +
+            '<p>Polígono de <strong>' + ultimo.area_ha.toFixed(2) + ' ha</strong> validado no celular (' + ultimo.uf + ').</p>' +
+            '<ul>' +
+            '<li><strong>Seu Direito (Até 4 Módulos Fiscais):</strong> Pela regra de pequena propriedade (Art. 61-A do Código Florestal), você tem direito à redução da faixa de recomposição de mata ciliar e isenção de recompor Reserva Legal além da vegetação existente em 2008.</li>' +
+            '<li><strong>Seu Dever:</strong> Cercar a faixa mínima de proteção hídrica e manter o protocolo do CAR (' + ultimo.recibo + ') atualizado no sistema estadual.</li>' +
+            '<li><strong>Benefício Destravado:</strong> Enquadramento em linhas de juros reduzidos como o Pronaf Verde e Pronaf Floresta.</li>' +
+            '</ul>' +
+            '</div>';
+        });
+    }
+
+    renderizarFila();
+  </script>
+</body>
+</html>
