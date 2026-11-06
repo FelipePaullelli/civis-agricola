@@ -1,29 +1,53 @@
+name: civis-agricola
+
 services:
   backend:
     build:
       context: .
       dockerfile: Containerfile
-    container_name: civis_agricola_backend
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    container_name: civis-agricola-api
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     volumes:
-      - .:/app:Z
+      - ./backend:/app/backend:Z
+      - ./data:/app/data:Z
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
       context: .
       dockerfile: Containerfile
-    container_name: civis_agricola_frontend
-    command: streamlit run frontend/app.py --server.port=8501 --server.address=0.0.0.0
+    container_name: civis-agricola-web
+    command: streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0
     ports:
       - "8501:8501"
     volumes:
-      - .:/app:Z
+      - ./frontend:/app/frontend:Z
+      - ./backend:/app/backend:Z
+      - ./data:/app/data:Z
     environment:
       - CIVIS_API_URL=http://backend:8000/api/v1/analisar
       - PYTHONUNBUFFERED=1
     depends_on:
       - backend
+    restart: unless-stopped
+
+  mobile:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: civis-agricola-mobile
+    command: python -m http.server 8080 --directory /app/mobile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./mobile:/app/mobile:Z
+    restart: unless-stopped
