@@ -15,6 +15,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from backend.app_calculator import calculate_environmental_liability
+from backend.main import _anexar_inteligencia_cidada
 from backend.spatial_validator import SpatialValidationError, validate_and_standardize
 from backend.report_generator import generate_pdf_report
 
@@ -27,10 +28,33 @@ PCJ_CENTER = [-22.85, -47.05]
 DEFAULT_ZOOM = 9
 
 SAMPLE_OPTIONS = {
-    "Piracicaba — Sítio Tanquã (Com APP + UC)": "piracicaba_uc_app.geojson",
-    "Jundiaí — Chácara Vale do Jundiaí (Com APP)": "jundiai_app.geojson",
-    "Limeira — Fazenda Boa Vista (Regular / Sem Restrições)": "limeira_regular.geojson",
+    "Piracicaba (SP) — Sítio Tanquã (Com APP + UC)": ("piracicaba_uc_app.geojson", "SP", "Piracicaba"),
+    "Jundiaí (SP) — Chácara Vale do Jundiaí (Com APP)": ("jundiai_app.geojson", "SP", "Jundiaí"),
+    "Limeira (SP) — Fazenda Boa Vista (Regular / Sem Restrições)": ("limeira_regular.geojson", "SP", "Limeira"),
 }
+
+UF_OPTIONS = {
+    "SP — SICAR-SP / DataGEO (Paulista)": "SP",
+    "MG — IDE-Sisema / SICAR-MG (Mineiro)": "MG",
+    "BR — SICAR Federal (Padrão Nacional)": "BR",
+}
+
+MUNICIPIOS_REF = [
+    "Piracicaba",
+    "Jundiaí",
+    "Limeira",
+    "Campinas",
+    "Bragança Paulista",
+    "Joanópolis",
+    "Nazaré Paulista",
+    "Rio Claro",
+    "Americana",
+    "Atibaia",
+    "Extrema",
+    "Camanducaia",
+    "Toledo",
+    "Itapeva",
+]
 
 
 def load_pcj_layer(filename: str) -> gpd.GeoDataFrame:
@@ -41,17 +65,29 @@ def load_pcj_layer(filename: str) -> gpd.GeoDataFrame:
     return gpd.read_file(path)
 
 
-def request_property_analysis(file_bytes: bytes, filename: str) -> Tuple[Dict[str, Any], str]:
-    """Envia o arquivo vetorial via HTTP POST para a API FastAPI ou aciona o motor local."""
+def request_property_analysis(
+    file_bytes: bytes,
+    filename: str,
+    uf: str = "SP",
+    municipio: str = "Piracicaba",
+) -> Tuple[Dict[str, Any], str]:
+    """Envia o arquivo vetorial via HTTP POST para a API FastAPI ou aciona o motor local integrado."""
     try:
         files = {"arquivo": (filename, file_bytes, "application/octet-stream")}
-        response = requests.post(API_URL, files=files, timeout=10)
+        params = {"uf": uf, "municipio": municipio}
+        response = requests.post(API_URL, params=params, files=files, timeout=10)
         if response.status_code == 200:
             return response.json(), "HTTP FastAPI (POST /api/v1/analisar)"
         detail = response.json().get("detail", response.text)
         raise SpatialValidationError(f"Erro na API ({response.status_code}): {detail}")
     except requests.exceptions.ConnectionError:
         diagnostico = calculate_environmental_liability(file_input=file_bytes, filename=filename)
+        diagnostico = _anexar_inteligencia_cidada(
+            diagnostico=diagnostico,
+            conteudo_bytes=file_bytes,
+            uf=uf,
+            municipio=municipio,
+        )
         payload = {
             "sucesso": True,
             "arquivo_processado": filename,
@@ -175,43 +211,48 @@ def render_app():
     icone_pagina = str(LOGO_PATH) if LOGO_PATH.exists() else "🌱"
 
     st.set_page_config(
-        page_title="Civis Agricola | Consultoria Ambiental PCJ",
+        page_title="Civis Agricola | Consultoria Ambiental e Cidadania Rural",
         page_icon=icone_pagina,
         layout="wide",
     )
 
-    # Exibe o logo no topo da barra lateral e ao lado do cabeçalho principal
     if LOGO_PATH.exists():
         st.logo(str(LOGO_PATH), size="large")
         col_logo, col_titulo = st.columns([1, 9], vertical_alignment="center")
         with col_logo:
             st.image(str(LOGO_PATH), width=110)
         with col_titulo:
-            st.title("Civis Agricola — Consultoria Ambiental Rural")
+            st.title("Civis Agricola — Consultoria Ambiental e Cidadania Rural")
             st.caption(
-                "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
-                "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
+                "Tradutor Multi-Estado do CAR (SP, MG e BR), Conformidade no Código Florestal e Cartilha Cidadã "
+                "| 100% Software Livre | SIRGAS 2000 (EPSG:4674)"
             )
     else:
-        st.title("🌱 Civis Agricola — Consultoria Ambiental Rural")
+        st.title("🌱 Civis Agricola — Consultoria Ambiental e Cidadania Rural")
         st.caption(
-            "Orientação para Licenciamento, Conformidade no Código Florestal e Benefícios para o Pequeno Produtor Rural "
-            "| Padrão Cartográfico: SIRGAS 2000 (EPSG:4674)"
+            "Tradutor Multi-Estado do CAR (SP, MG e BR), Conformidade no Código Florestal e Cartilha Cidadã "
+            "| 100% Software Livre | SIRGAS 2000 (EPSG:4674)"
         )
 
     with st.sidebar:
         st.header("1. Entrada da Propriedade")
         modo_entrada = st.radio(
             "Escolha a fonte do polígono:",
-            ["Upload de Arquivo Vetorial", "Cenários de Teste (Bacia PCJ)"],
+            ["Upload de Arquivo Vetorial / App Mobile", "Cenários de Teste (Bacia PCJ)"],
         )
 
         file_bytes: Optional[bytes] = None
         filename: str = ""
+        uf_selecionada: str = "SP"
+        municipio_selecionado: str = "Piracicaba"
 
-        if modo_entrada == "Upload de Arquivo Vetorial":
+        if modo_entrada == "Upload de Arquivo Vetorial / App Mobile":
+            uf_label = st.selectbox("Sistema Estadual do CAR:", list(UF_OPTIONS.keys()))
+            uf_selecionada = UF_OPTIONS[uf_label]
+            municipio_selecionado = st.selectbox("Município de Referência (Módulo Fiscal):", MUNICIPIOS_REF)
+
             uploaded = st.file_uploader(
-                "Envie o limite do imóvel (.geojson, .kml, .shp ou .zip)",
+                "Envie o polígono ou pacote CAR (.geojson, .kml, .shp ou .zip)",
                 type=["geojson", "json", "kml", "shp", "zip"],
             )
             if uploaded is not None:
@@ -219,31 +260,39 @@ def render_app():
                 filename = uploaded.name
         else:
             cenario_label = st.selectbox("Selecione o imóvel de exemplo:", list(SAMPLE_OPTIONS.keys()))
-            sample_file = SAMPLES_DIR / SAMPLE_OPTIONS[cenario_label]
+            arq_nome, uf_cenario, mun_cenario = SAMPLE_OPTIONS[cenario_label]
+            uf_selecionada = uf_cenario
+            municipio_selecionado = mun_cenario
+            sample_file = SAMPLES_DIR / arq_nome
             if sample_file.exists():
                 file_bytes = sample_file.read_bytes()
                 filename = sample_file.name
 
         executar = st.button(
-            "🔍 Executar Diagnóstico Ambiental",
+            "🔍 Executar Diagnóstico e Cartilha Cidadã",
             type="primary",
             use_container_width=True,
             disabled=(file_bytes is None),
         )
 
         st.divider()
-        st.markdown("**Resumo da Base Territorial PCJ**")
-        st.write("- **Municípios integrados:** 78 (73 SP / 5 MG)")
+        st.markdown("**Arquitetura 100% Software Livre**")
+        st.write("- **App Campo:** PWA Offline (`mobile/`) < 15 KB")
+        st.write("- **Tradutor CAR:** SP (DataGEO), MG (Sisema) e BR")
+        st.write("- **Municípios PCJ:** 78 (73 SP / 5 MG)")
         st.write("- **Projeção oficial:** SIRGAS 2000 (EPSG:4674)")
-        st.write("- **Cálculo métrico:** UTM Zona 23S (EPSG:31983)")
 
     if executar and file_bytes and filename:
         try:
-            with st.spinner("Processando geometria, cruzando camadas e gerando laudo PDF..."):
-                resposta_api, modo_conexao = request_property_analysis(file_bytes, filename)
+            with st.spinner("Processando geometria, traduzindo camadas CAR e gerando Cartilha Cidadã..."):
+                resposta_api, modo_conexao = request_property_analysis(
+                    file_bytes=file_bytes,
+                    filename=filename,
+                    uf=uf_selecionada,
+                    municipio=municipio_selecionado,
+                )
                 val_local = validate_and_standardize(file_bytes, filename=filename)
-                
-                # Gera o arquivo PDF automaticamente para download
+
                 pdf_path = generate_pdf_report(file_bytes, filename=filename)
                 pdf_bytes = pdf_path.read_bytes()
 
@@ -264,20 +313,28 @@ def render_app():
             gdf_imovel=st.session_state.get("gdf_imovel"),
             centro_imovel=st.session_state.get("centro_imovel"),
         )
-        st_folium(mapa_pcj, width=None, height=600, returned_objects=[])
+        st_folium(mapa_pcj, width=None, height=620, returned_objects=[])
 
     with col_painel:
-        st.subheader("Diagnóstico e Orientações")
+        st.subheader("Diagnóstico Técnico e Cartilha Cidadã")
         if "resposta_api" in st.session_state:
             res = st.session_state["resposta_api"]["resultado"]
             status = res["status_geral"]
+            cartilha = res.get("cartilha_cidada")
+            trad_car = res.get("traducao_car")
 
             if "Regular" in status:
-                st.success(f"**Status da Conformidade:** {status}")
+                st.success(f"**Status Técnico:** {status}")
             else:
-                st.warning(f"**Status da Conformidade:** {status}")
+                st.warning(f"**Status Técnico:** {status}")
 
-            # Botão de Download End-to-End do PDF
+            if trad_car:
+                st.caption(
+                    f"**Sistema CAR:** {trad_car.get('sistema_estadual')} | "
+                    f"**Imóvel:** {trad_car.get('nome_imovel')} | "
+                    f"**Protocolo:** {trad_car.get('recibo_car')}"
+                )
+
             if "pdf_bytes" in st.session_state:
                 st.download_button(
                     label="📥 Baixar Laudo Técnico em PDF",
@@ -291,46 +348,77 @@ def render_app():
             m1, m2, m3 = st.columns(3)
             m1.metric("Área Total", f"{res['balanco_uso_solo_ha']['area_total_ha']:.2f} ha")
             m2.metric("APP Estimada", f"{res['balanco_uso_solo_ha']['app_estimada_ha']:.2f} ha")
-            m3.metric("Reserva Legal", f"{res['balanco_uso_solo_ha']['reserva_legal_referencia_ha']:.2f} ha")
+            m3.metric("Reserva Legal (Ref.)", f"{res['balanco_uso_solo_ha']['reserva_legal_referencia_ha']:.2f} ha")
 
-            st.markdown("##### 📌 Conclusão Preliminar")
+            if cartilha:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Módulos Fiscais", f"{cartilha['qtd_modulos_fiscais']:.2f} MF")
+                c2.metric("Escadinha APP (61-A)", f"{cartilha['faixa_recomposicao_app_m']} m")
+                c3.metric(
+                    "Isenção RL (Art. 67)",
+                    "Sim (Familiar)" if cartilha["isento_recomposicao_rl_art67"] else "Não (Regra Geral)",
+                )
+
+                st.info(
+                    f"**📋 Enquadramento Cidadão ({cartilha['status_cidadao']}):**\n\n"
+                    f"{cartilha['resumo_linguagem_simples']}"
+                )
+
+                with st.expander("✅ Seus Direitos Garantidos (Código Florestal)", expanded=True):
+                    for direito in cartilha.get("seus_direitos", []):
+                        st.write(f"• {direito}")
+
+                with st.expander("🛠️ Seus Deveres Práticos (Regularização / PRA)", expanded=True):
+                    for dever in cartilha.get("seus_deveres", []):
+                        st.write(f"• {dever}")
+
+                with st.expander("💰 Benefícios Verdes, Crédito Rural e PSA Destravados", expanded=False):
+                    for beneficio in cartilha.get("beneficios_destravados", []):
+                        st.write(f"• {beneficio}")
+
+            st.markdown("##### 📌 Conclusão Técnica")
             st.write(res["conclusao_tecnica"])
 
             if res["alertas"]:
-                with st.expander("⚠️ Alertas Territoriales Identificados", expanded=True):
+                with st.expander("⚠️ Alertas Territoriais Identificados", expanded=False):
                     for alerta in res["alertas"]:
                         st.write(f"- {alerta}")
-
-            with st.expander("💡 Recomendações Técnicas para o Produtor", expanded=False):
-                for rec in res["recomendacoes_tecnicas"]:
-                    st.write(f"• {rec}")
 
             with st.expander("📄 Visualizar JSON Completo da API", expanded=False):
                 st.json(st.session_state["resposta_api"])
         else:
             st.info(
-                "Selecione um arquivo vetorial ou um cenário de teste na barra lateral "
-                "e clique em **Executar Diagnóstico Ambiental** para gerar o laudo e liberar o download em PDF."
+                "Selecione um arquivo vetorial (ou coleta do App Mobile) ou escolha um cenário de teste "
+                "na barra lateral e clique em **Executar Diagnóstico e Cartilha Cidadã**."
             )
 
 
 def _run_cli_check():
-    """Autoteste End-to-End do Dia 12 via terminal."""
+    """Autoteste End-to-End (Etapa 5) via terminal."""
     sample_path = SAMPLES_DIR / "piracicaba_uc_app.geojson"
     if not sample_path.exists():
         sample_path = PROCESSED_DIR / "amostra_propriedade_pcj.geojson"
 
     raw_bytes = sample_path.read_bytes()
-    payload, origem = request_property_analysis(raw_bytes, sample_path.name)
+    payload, origem = request_property_analysis(
+        raw_bytes,
+        sample_path.name,
+        uf="SP",
+        municipio="Piracicaba",
+    )
     val = validate_and_standardize(raw_bytes, filename=sample_path.name)
     pdf_out = generate_pdf_report(raw_bytes, filename=sample_path.name)
     res = payload["resultado"]
+    cartilha = res.get("cartilha_cidada", {})
 
-    print("\n=== Teste End-to-End (Dia 12) ===")
-    print(f"Canal de Conexão     : {origem}")
-    print(f"Status do Imóvel     : {res['status_geral']}")
+    print("\n=== Teste End-to-End Frontend + Cartilha Cidadã (Etapa 5) ===")
+    print(f"Canal de Conexão      : {origem}")
+    print(f"Sistema CAR           : {res.get('traducao_car', {}).get('sistema_estadual')}")
+    print(f"Status Técnico        : {res['status_geral']}")
+    print(f"Status Cidadão        : {cartilha.get('status_cidadao')} ({cartilha.get('qtd_modulos_fiscais')} MF)")
+    print(f"Escadinha APP (61-A)  : {cartilha.get('faixa_recomposicao_app_m')} metros")
     print(f"PDF Gerado com Sucesso: {pdf_out.name} ({pdf_out.stat().st_size} bytes)")
-    print("Status               : Integração End-to-End Streamlit + Backend + PDF validada!")
+    print("Status                : Integração Completa Streamlit + CAR + Cartilha Cidadã + PDF validada!")
 
 
 if __name__ == "__main__":
